@@ -42,7 +42,7 @@ select,input[type=number]{background:var(--panel2);color:var(--text);border:1px 
 select{-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
 header select{width:auto;min-height:40px;padding:8px 30px 8px 12px;font-size:15px}
 input[type=range]{width:100%;accent-color:var(--brass);height:36px}
-button.b{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:16px;min-height:48px;cursor:pointer;font-family:inherit;touch-action:manipulation}
+button.b,label.b{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:16px;min-height:48px;cursor:pointer;font-family:inherit;touch-action:manipulation}
 button.b:active{transform:scale(.96)}
 button.b.primary{background:var(--brass);color:#1d150a;border-color:var(--brass);font-weight:650}
 button.b.xl{min-width:150px;min-height:58px;font-size:19px}
@@ -127,6 +127,28 @@ canvas#tTrace{width:100%;height:120px;display:block;background:var(--panel2);bor
 .suggest .what{font-size:22px;font-family:Georgia,serif;font-style:italic;color:var(--brass2);margin-bottom:6px}
 .overall{height:8px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-top:10px}
 .overall div{height:100%;background:linear-gradient(90deg,var(--l1),var(--l2),var(--l3))}
+/* Standards */
+input[type=text],input[type=search],textarea{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px;font-family:inherit;min-height:44px;width:100%;-webkit-user-select:text;user-select:text}
+textarea{resize:vertical}
+.tunes{display:flex;flex-direction:column;gap:8px}
+.tune{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;cursor:pointer}
+.tune.sel{border-color:var(--brass);background:#262017}
+.tmain{flex:1;min-width:0}
+.ttitle{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tmeta{font-size:13px;color:var(--muted);margin-top:3px}
+.tact{display:flex;gap:6px}
+.tact .b{min-height:42px;min-width:44px;padding:6px 10px}
+.kchip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:0 7px;color:var(--brass2);font-weight:600}
+.stages{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-top:8px;max-width:460px}
+.stages button{height:24px;border:0;border-radius:5px;background:var(--l0);font-size:11px;color:var(--muted);padding:0;cursor:pointer;font-family:inherit}
+.stages button.done{background:var(--l2);color:#1d150a}
+.stages.full button{background:var(--l3);color:#0e2416}
+.old{color:var(--bad)}
+.dots{color:var(--brass2);letter-spacing:1px}
+.tasks{margin:10px 0 14px;padding-left:22px}
+.tasks li{margin:5px 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:center;justify-content:center;padding:16px}
+.mbox{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
 </style>
 </head>
 <body>
@@ -332,6 +354,55 @@ canvas#tTrace{width:100%;height:120px;display:block;background:var(--panel2);bor
   <div class="panel suggest" id="sSuggest" hidden></div>
   <div class="cards" id="sList"></div>
 </section>
+<!-- ================= STANDARDS ================= -->
+<section id="tab-standards" class="tab" hidden>
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div class="seg" id="sdView"><button data-v="known">Repertoire</button><button data-v="learn">To learn</button></div>
+      <div class="row"><button class="b primary" id="sdPick">🎲 Pick a tune</button><button class="b" id="sdAdd">＋ Add</button></div>
+    </div>
+    <div class="row" style="margin-top:12px;flex-wrap:nowrap">
+      <input type="search" id="sdQ" placeholder="Search tunes…" autocomplete="off">
+      <select id="sdSort" style="width:auto" aria-label="Sort"></select>
+    </div>
+    <div class="muted" id="sdStats" style="margin-top:10px;font-size:14px"></div>
+  </div>
+  <div class="panel suggest" id="stdCard" hidden></div>
+  <div class="tunes" id="sdList"></div>
+  <div class="panel" style="margin-top:14px">
+    <h2>Backup &amp; sync</h2>
+    <div class="muted" style="font-size:14px;margin-bottom:10px">Your tunes and progress are saved in this browser only. Export a backup file to keep them safe or move them to another device, then import it there. The backup includes all your Woodshed progress.</div>
+    <div class="row">
+      <button class="b" id="sdBulk">Paste a list of tunes</button>
+      <button class="b" id="sdExport">⬇ Export backup</button>
+      <label class="b" style="display:inline-flex;align-items:center">⬆ Import backup<input type="file" id="sdImport" accept=".json,application/json" hidden></label>
+    </div>
+  </div>
+</section>
+
+<div class="modal" id="smModal" hidden><div class="mbox">
+  <h2 id="smHead">Add tune</h2>
+  <label class="f">Title<input type="text" id="smName" autocomplete="off"></label>
+  <div class="row" style="flex-wrap:nowrap">
+    <label class="f" style="flex:1">Key (concert)<select id="smRoot"></select></label>
+    <label class="f" style="flex:1">Mode<select id="smMode"><option value="">Major</option><option value="-">Minor</option></select></label>
+  </div>
+  <label class="f">List<select id="smList"><option value="known">Repertoire (I know it)</option><option value="learn">To learn</option></select></label>
+  <label class="f">Tempo for practice (BPM, optional)<input type="number" id="smTempo" min="0" max="400" inputmode="numeric"></label>
+  <label class="f">Notes (form, recordings, tricky bars…)<textarea id="smNotes" rows="3"></textarea></label>
+  <div class="row" style="justify-content:space-between">
+    <button class="b bad" id="smDel">Delete</button>
+    <span class="row"><button class="b" id="smCancel">Cancel</button><button class="b primary" id="smSave">Save</button></span>
+  </div>
+</div></div>
+
+<div class="modal" id="sbModal" hidden><div class="mbox">
+  <h2>Paste a list of tunes</h2>
+  <div class="muted" style="font-size:14px">One tune per line, with the concert key in brackets. Numbers at the start are ignored. Example:<br><code>12 - Evidence (Eb)</code> · <code>Blue Bossa (C-)</code></div>
+  <textarea id="sbText" rows="8"></textarea>
+  <label class="f">Add to<select id="sbList"><option value="learn">To learn</option><option value="known">Repertoire (I know it)</option></select></label>
+  <div class="row" style="justify-content:flex-end"><button class="b" id="sbCancel">Cancel</button><button class="b primary" id="sbSave">Add tunes</button></div>
+</div></div>
 </main>
 
 <nav class="tabs" id="tabs">
@@ -340,6 +411,7 @@ canvas#tTrace{width:100%;height:120px;display:block;background:var(--panel2);bor
   <button data-tab="drone"><span class="ic">〰︎</span>Drone</button>
   <button data-tab="ear"><span class="ic">👂</span>Ear training</button>
   <button data-tab="study"><span class="ic">📖</span>Study</button>
+  <button data-tab="standards"><span class="ic">🎼</span>Standards</button>
 </nav>
 <div id="toast"></div>
 
@@ -592,7 +664,7 @@ instrSel.value = S.instr;
 instrSel.onchange = () => {
   S.instr = instrSel.value; store.set('instr', S.instr);
   renderDroneKeys(); if (droneKey != null) droneStart(droneKey);
-  renderStudy(); renderEar(); updateTuner(null);
+  renderStudy(); renderEar(); updateTuner(null); renderStd(); if (sdCur) { const c = STD.tunes.find(t => t.id === sdCur); if (c) stdCard(c, false); }
   toast(INSTR[S.instr].label + ' — note names are now written for this instrument');
 };
 
@@ -914,12 +986,12 @@ function droneVoice(f, gain, out) {
   nodes.forEach(o => o.start());
   return nodes;
 }
-function droneStart(k) {
+function droneStart(k, voiceOverride) {
   ac(); droneFade();
   droneKey = k;
   const concertPc = mod(parseNote(k).pc - T(), 12);
   const base = D.oct + concertPc;
-  const ints = { r: [0], r5: [0, 7], r58: [0, 7, 12], maj: [0, 7, 16], min: [0, 7, 15] }[D.voice];
+  const ints = { r: [0], r5: [0, 7], r58: [0, 7, 12], maj: [0, 7, 16], min: [0, 7, 15] }[voiceOverride || D.voice];
   const out = ctx.createGain(); out.gain.setValueAtTime(0, ctx.currentTime);
   out.gain.linearRampToValueAtTime(D.vol * 0.55, ctx.currentTime + 0.9); out.connect(master);
   let oscs = [];
@@ -1244,6 +1316,400 @@ $('#sSuggestBtn').onclick = () => {
   sg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 renderStudy();
+
+/* ============================================================
+   6. STANDARDS — remember & learn tunes
+   ============================================================ */
+const SEED_KNOWN = `My Shining Hour (Eb)
+Someday My Prince Will Come (Bb)
+Beatrice (F)
+Seven Steps To Heaven (F)
+Nica's Dream (Bb-)
+I'll Be Seeing You (Eb)
+Contemplation 1 (C-)
+Love For Sale 1 (F-)
+A Night In Tunisia (D-)
+All The Things You Are 1 (Ab)
+In Walked Bud (Ab)
+Evidence (Eb)
+Confirmation (F)
+Alone Together (D-)
+Star Eyes (Eb)
+I Mean You (F)
+Autumn Leaves 2 (G-)
+If I Were A Bell (F)
+Dexterity (Bb)
+Solar (C-)
+You And The Night And The Music 6-8 (C-)
+St. Thomas (C)
+This I Dig Of You (Bb)
+Recordame (A-)
+On Green Dolphin Street (Eb)
+Bye Bye Blackbird (F)
+Four (Eb)
+It Don't Mean A Thing (Bb)
+What Is This Thing Called Love (C)
+Bags' Groove (F)
+Valse Hot (Ab)
+Birk's Works (F-)
+Like Sonny (Eb)
+Softly, As In A Morning Sunrise (C-)
+Blue Monk (Bb)
+Have You Met Miss Jones? (F)
+After You've Gone (Eb)
+I'll Remember April (G)
+How High The Moon (G)
+You And The Night And The Music (C-)
+There Will Never Be Another You 1 (Eb)
+My Little Suede Shoes (Eb)
+Like Someone In Love (Eb)
+The Night Has A Thousand Eyes (G)
+It Could Happen To You (Eb)
+Tune Up (Bb)
+Beautiful Love (D-)
+Blue Bossa 1 (C-)
+Days Of Wine And Roses 2 (F)
+Song For My Father (F-)
+Lady Bird (C)
+Lullaby Of Birdland 2 (Ab)`;
+const SEED_LEARN = `A Sound For Sore Ears (Eb)
+Adam's Apple (Ab)
+Afternoon In Paris (C)
+Agua De Beber (D-)
+Alice In Wonderland (C)
+Anthropology (Bb)
+April In Paris (C)
+Barbados (F)
+Basin Street Blues (Bb)
+Bessie's Blues (Eb)
+Billie's Bounce (F)
+Birdland (G)
+The Birth Of The Blues (C)
+Blue Trane (Eb)
+Blues by Five (Bb)
+Blues For Alice (F)
+Blues In The Closet (Ab)
+Body And Soul (Db)
+Bolivia (D)
+Bourbon Street Parade (Bb)
+Ceora (Ab)
+Cheese Cake (C-)
+Don't Get Around Much Anymore (C)
+Dream A Little Dream Of Me (C)
+Epistrophy (Db)
+Equinox 1 (D-)
+Firm Roots (Eb)
+Freight Train (Ab)
+I Love You (F)
+I Remember You (F)
+I'm Confessin' That I Love You (Eb)
+Impressions (D-)
+Love For Sale (Bb-)
+Milestones (Old) (Bb)
+Muñequita Linda (Eb)
+My Funny Valentine (Eb)
+On The Sunny Side Of The Street (C)
+Ornithology (G)
+Pent Up House (G)
+Scrapple From The Apple (F)
+Segment (Bb-)
+September In The Rain 1 (Eb)
+Serenity (Eb)
+Skylark (Eb)
+Stablemates (Db)
+Stella By Starlight (Bb)
+Whisper Not 1 (C-)
+Witch Hunt (C-)
+Yardbird Suite (C)
+You'd Be So Nice To Come Home To (G-)
+Everything Happens To Me (Bb)
+Tea For Two (C)
+Polkadots And Moonbeams (Bb)
+Manteca (Bb)
+Eighty One (F)
+Gary's Notebook 1 (C-)
+If I Should Lose You (F)
+Misty (Eb)
+September In The Rain (Ab)
+The Nearness Of You (F)`;
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const daysSince = s => { if (!s) return Infinity; const [y, m, d] = s.split('-').map(Number); const n = new Date(); return Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(y, m - 1, d)) / 86400000); };
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function parseTuneLine(l) {
+  const m = l.match(/^\s*(?:\d+\s*[-.)]\s*)?(.*?)\s*\(\s*([A-G][b#♭♯]?)\s*(-|m|min)?\s*\)\s*$/);
+  if (!m || !m[1]) return null;
+  return { title: m[1], key: m[2].replace('♭', 'b').replace('♯', '#') + (m[3] ? '-' : '') };
+}
+function newTune(title, key, list) {
+  return { id: uid(), title, key, list, stage: list === 'known' ? 5 : 0, conf: 2, last: null, plays: 0, notes: '', tempo: 0, focus: false };
+}
+let STD = store.get('standards', null);
+const saveStd = () => store.set('standards', STD);
+if (!STD || !Array.isArray(STD.tunes)) {
+  STD = { tunes: [] };
+  SEED_KNOWN.split('\n').forEach(l => { const t = parseTuneLine(l); if (t) STD.tunes.push(newTune(t.title, t.key, 'known')); });
+  SEED_LEARN.split('\n').forEach(l => { const t = parseTuneLine(l); if (t) STD.tunes.push(newTune(t.title, t.key, 'learn')); });
+  saveStd();
+}
+const SD = Object.assign({ view: 'known', sortKnown: 'review', sortLearn: 'stage' }, store.get('stdView', {}));
+let sdCur = null, sdQ = '';
+const saveSD = () => store.set('stdView', SD);
+
+const STAGES = ['Not started', 'Listen', 'Melody', 'Changes', 'Improvise', 'Memorized'];
+const STAGE_TIPS = [
+  'Pick one or two reference recordings and listen to the whole tune a few times. Then move it to “Listen”.',
+  'Listen every day until you can sing the melody and hear the form (AABA, ABAC, blues…). Who wrote it? Which are the classic versions?',
+  'Learn the head by ear, phrase by phrase, from your favourite recording. Then check it against the chart, in the written key for your horn.',
+  'Play the roots through the form, then the arpeggios, then the guide tones (3rds and 7ths). Sing the roots while the recording plays.',
+  'Solo over a backing track, or with the metronome on 2 & 4. Start by paraphrasing the melody, then aim for chord tones on beat 1.',
+  'Play the head and two choruses with no chart. Ready to move it to your repertoire!'
+];
+const CONF = ['', 'Shaky', 'OK', 'Solid'];
+const REVIEW_TASKS = [
+  () => 'Play the head from memory, with your best sound and phrasing.',
+  () => 'Sing the roots (the bass line) through one chorus.',
+  () => 'Play the guide tones (3rds and 7ths) through the whole form.',
+  () => 'Solo for 2 choruses with the metronome on 2 & 4.',
+  () => `Play the head in another key: <b>${pretty(pick(KEYS))}</b> (written).`,
+  () => 'Arpeggiate every chord of the form (1-3-5-7) in time.',
+  () => 'Solo one chorus using only chord tones, then one built around the melody.',
+  () => 'Play it at a new tempo: first as a ballad, then up-tempo.',
+  () => 'Trade fours with yourself: 4 bars of melody, then 4 bars improvised.',
+  () => 'Without your horn, say the form and the chords of each section out loud.'
+];
+
+function keyInfo(k) {
+  const minor = k.endsWith('-'), root = k.replace('-', ''), pc = parseNote(root).pc;
+  return { minor, root, pc, written: KEYS[mod(pc + T(), 12)] };
+}
+function keyLabel(k) {
+  const i = keyInfo(k), m = i.minor ? 'm' : '';
+  const short = INSTR[S.instr].label.split(' ')[0];
+  return `<span class="kchip">${pretty(i.root)}${m}</span>` + (T() ? ` <span>${short}: <b>${pretty(i.written)}${m}</b></span>` : '');
+}
+function lastTxt(t) {
+  const d = daysSince(t.last);
+  if (d === Infinity) return '<span class="old">not reviewed yet</span>';
+  const s = d === 0 ? 'played today' : d === 1 ? 'played yesterday' : `played ${d} days ago`;
+  return d > 30 ? `<span class="old">${s}</span>` : s;
+}
+const dots = c => '<span class="dots">' + '●'.repeat(c) + '○'.repeat(3 - c) + '</span>';
+
+function sortOptions() {
+  const el = $('#sdSort'); el.innerHTML = '';
+  const opts = SD.view === 'known'
+    ? [['review', 'Needs review first'], ['conf', 'Shakiest first'], ['az', 'A–Z'], ['key', 'By key']]
+    : [['stage', 'Most progress first'], ['az', 'A–Z'], ['key', 'By key']];
+  opts.forEach(([v, l]) => el.add(new Option(l, v)));
+  el.value = SD.view === 'known' ? SD.sortKnown : SD.sortLearn;
+}
+function renderStd() {
+  const known = STD.tunes.filter(t => t.list === 'known'), learn = STD.tunes.filter(t => t.list === 'learn');
+  const [bK, bL] = $$('#sdView button');
+  bK.textContent = `Repertoire (${known.length})`; bL.textContent = `To learn (${learn.length})`;
+  $('#sdPick').textContent = SD.view === 'known' ? '🎲 Pick a tune to review' : '🎲 Pick a tune to learn';
+  const list = SD.view === 'known' ? known : learn;
+  if (SD.view === 'known') {
+    const p30 = known.filter(t => daysSince(t.last) <= 30).length, never = known.filter(t => !t.last).length;
+    $('#sdStats').textContent = `${known.length} tunes · ${p30} played in the last 30 days · ${never} not reviewed yet`;
+  } else {
+    const prog = learn.filter(t => t.stage > 0 && t.stage < 5).length, mem = learn.filter(t => t.stage === 5).length;
+    $('#sdStats').textContent = `${learn.length} tunes · ${prog} in progress · ${mem} memorized and ready for the repertoire`;
+  }
+  const q = sdQ.trim().toLowerCase();
+  let rows = list.filter(t => !q || t.title.toLowerCase().includes(q));
+  const sort = SD.view === 'known' ? SD.sortKnown : SD.sortLearn;
+  const az = (a, b) => a.title.localeCompare(b.title);
+  const cmp = {
+    az,
+    key: (a, b) => keyInfo(a.key).pc - keyInfo(b.key).pc || keyInfo(a.key).minor - keyInfo(b.key).minor || az(a, b),
+    review: (a, b) => Math.min(daysSince(b.last), 9999) - Math.min(daysSince(a.last), 9999) || a.conf - b.conf || az(a, b),
+    conf: (a, b) => a.conf - b.conf || Math.min(daysSince(b.last), 9999) - Math.min(daysSince(a.last), 9999) || az(a, b),
+    stage: (a, b) => (b.focus - a.focus) || b.stage - a.stage || az(a, b)
+  }[sort] || az;
+  rows.sort(cmp);
+  const el = $('#sdList'); el.innerHTML = '';
+  if (!rows.length) el.innerHTML = `<div class="panel center muted">${q ? 'No tunes match your search.' : 'No tunes here yet — tap “＋ Add”.'}</div>`;
+  for (const t of rows) {
+    const r = document.createElement('div'); r.className = 'tune' + (t.id === sdCur ? ' sel' : '');
+    const meta = t.list === 'known' ? `${keyLabel(t.key)} · ${dots(t.conf)} · ${lastTxt(t)}` : `${keyLabel(t.key)} · ${STAGES[t.stage]}`;
+    r.innerHTML = `<div class="tmain"><div class="ttitle">${t.focus ? '★ ' : ''}${esc(t.title)}</div><div class="tmeta">${meta}</div>
+      ${t.list === 'learn' ? `<div class="stages${t.stage === 5 ? ' full' : ''}">${STAGES.slice(1).map((s, i) => `<button data-s="${i + 1}" class="${t.stage > i ? 'done' : ''}">${s}</button>`).join('')}</div>` : ''}</div>
+      <div class="tact">${t.list === 'known' ? '<button class="b good" data-a="played" title="Played today">✓</button>' : ''}
+      <button class="b" data-a="drone" title="Drone in this key">〰︎</button><button class="b" data-a="edit" title="Edit">✎</button></div>`;
+    r.onclick = () => stdCard(t);
+    $$('[data-s]', r).forEach(b => b.onclick = e => {
+      e.stopPropagation(); const s = +b.dataset.s; t.stage = t.stage === s ? s - 1 : s; saveStd();
+      toast(`${t.title}: ${STAGES[t.stage]}`); renderStd(); if (sdCur === t.id) stdCard(t, false);
+    });
+    $('[data-a=drone]', r).onclick = e => { e.stopPropagation(); tuneDrone(t); };
+    $('[data-a=edit]', r).onclick = e => { e.stopPropagation(); openTuneModal(t); };
+    const pl = $('[data-a=played]', r);
+    if (pl) pl.onclick = e => { e.stopPropagation(); t.last = today(); t.plays++; saveStd(); toast(`Logged: ${t.title}`); renderStd(); };
+    el.appendChild(r);
+  }
+}
+function tuneDrone(t) {
+  const ki = keyInfo(t.key);
+  if (droneKey === ki.written) { droneStop(); toast('Drone stopped'); return; }
+  const v = (D.voice === 'maj' || D.voice === 'min') ? (ki.minor ? 'min' : 'maj') : null;
+  droneStart(ki.written, v);
+  toast(`Drone on ${pretty(ki.written)}${ki.minor ? 'm' : ''}${T() ? ' (written)' : ''}`);
+}
+function tuneMetro(t) {
+  if (t.tempo) setBpm(t.tempo);
+  M.clickOn = '24'; $('#mClickOn').value = '24'; saveM();
+  if (!mRunning) mStart();
+  toast(`Metronome ${M.bpm} BPM on 2 & 4`);
+}
+function stdCard(t, scroll = true) {
+  sdCur = t.id;
+  const el = $('#stdCard'); el.hidden = false;
+  let h = `<div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
+    <div><h2>${t.list === 'known' ? 'Review' : 'Learning'}${t.focus ? ' · ★ focus tune' : ''}</h2>
+    <div class="what">${esc(t.title)}</div><div>${keyLabel(t.key)}${t.tempo ? ' · ♩ = ' + t.tempo : ''}</div></div>
+    <button class="b sm" data-x="close" aria-label="Close">✕</button></div>`;
+  if (t.notes) h += `<div class="muted" style="margin-top:8px;white-space:pre-wrap;font-size:14px">${esc(t.notes)}</div>`;
+  if (t.list === 'known') {
+    const tasks = shuffle(REVIEW_TASKS).slice(0, 3).map(f => f());
+    h += `<div class="muted" style="margin-top:8px;font-size:14px">${dots(t.conf)} ${CONF[t.conf]} · ${lastTxt(t)}${t.plays ? ' · reviewed ' + t.plays + '×' : ''}</div>
+      <ol class="tasks">${tasks.map(x => `<li>${x}</li>`).join('')}</ol>
+      <div class="row"><button class="b sm" data-x="drone">〰︎ Drone</button><button class="b sm" data-x="metro">⏱ Metronome on 2 &amp; 4</button><button class="b sm" data-x="edit">✎ Edit</button><button class="b sm" data-x="tolearn">↺ Back to “To learn”</button></div>
+      <div class="row" style="margin-top:12px"><span class="muted">How did it go?</span>
+      <button class="b good" data-r="3">✓ Solid</button><button class="b" data-r="2">~ OK</button><button class="b bad" data-r="1">✗ Shaky</button></div>`;
+  } else {
+    h += `<div style="margin-top:10px">Stage ${t.stage}/5: <b>${STAGES[t.stage]}</b></div>
+      <div class="stages${t.stage === 5 ? ' full' : ''}" style="margin-bottom:10px">${STAGES.slice(1).map((s, i) => `<button tabindex="-1" class="${t.stage > i ? 'done' : ''}">${s}</button>`).join('')}</div>
+      <div style="margin:8px 0 14px">${t.stage < 5 ? '<b>Next:</b> ' : ''}${STAGE_TIPS[t.stage]}</div>
+      <div class="row"><button class="b sm" data-x="drone">〰︎ Drone</button><button class="b sm" data-x="metro">⏱ Metronome on 2 &amp; 4</button>
+      <button class="b sm${t.focus ? ' on' : ''}" data-x="focus">${t.focus ? '★ Focus tune' : '☆ Make focus tune'}</button><button class="b sm" data-x="edit">✎ Edit</button></div>
+      <div class="row" style="margin-top:12px">${t.stage > 0 ? '<button class="b" data-x="back">◂ Back</button>' : ''}
+      ${t.stage < 5 ? `<button class="b primary" data-x="next">${t.stage === 0 ? 'Start: Listen ▸' : 'Done → ' + STAGES[t.stage + 1] + ' ▸'}</button>` : '<button class="b primary" data-x="move">✓ Move to repertoire</button>'}</div>`;
+  }
+  el.innerHTML = h;
+  const on = (x, fn) => { const b = $(`[data-x=${x}]`, el); if (b) b.onclick = fn; };
+  on('close', () => { el.hidden = true; sdCur = null; renderStd(); });
+  on('drone', () => tuneDrone(t));
+  on('metro', () => tuneMetro(t));
+  on('edit', () => openTuneModal(t));
+  on('focus', () => { const f = !t.focus; STD.tunes.forEach(x => x.focus = false); t.focus = f; saveStd(); renderStd(); stdCard(t, false); });
+  on('next', () => { t.stage = Math.min(5, t.stage + 1); saveStd(); renderStd(); stdCard(t, false); });
+  on('back', () => { t.stage = Math.max(0, t.stage - 1); saveStd(); renderStd(); stdCard(t, false); });
+  on('move', () => {
+    t.list = 'known'; t.focus = false; t.stage = 5; t.conf = 2; t.last = today(); t.plays++; saveStd();
+    el.hidden = true; sdCur = null; renderStd(); toast(`🎉 ${t.title} is now in your repertoire`);
+  });
+  on('tolearn', () => { t.list = 'learn'; t.stage = 4; saveStd(); el.hidden = true; sdCur = null; renderStd(); toast(`${t.title} moved to “To learn”`); });
+  $$('[data-r]', el).forEach(b => b.onclick = () => {
+    t.conf = +b.dataset.r; t.last = today(); t.plays++; saveStd();
+    el.hidden = true; sdCur = null; renderStd(); toast(`Logged: ${t.title} — ${CONF[t.conf]}`);
+  });
+  renderStd();
+  if (scroll) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function stdPick() {
+  const list = STD.tunes.filter(t => t.list === SD.view);
+  if (!list.length) return toast('No tunes in this list yet');
+  if (SD.view === 'known') {
+    const sc = list.filter(t => t.id !== sdCur).map(t => ({ t, s: (Math.min(daysSince(t.last), 60) + 1) * (4 - t.conf) + Math.random() * 6 })).sort((a, b) => b.s - a.s);
+    stdCard(pick(sc.slice(0, 6)).t);
+  } else {
+    const cand = list.filter(t => t.id !== sdCur && t.stage < 5);
+    const prog = cand.filter(t => t.stage > 0);
+    const pool = prog.length && Math.random() < 0.5 ? prog : (cand.length ? cand : list);
+    stdCard(pick(pool));
+  }
+}
+function showView() {
+  const f = SD.view === 'learn' && STD.tunes.find(t => t.focus && t.list === 'learn');
+  sortOptions();
+  if (f) stdCard(f, false); else { $('#stdCard').hidden = true; sdCur = null; renderStd(); }
+}
+seg($('#sdView'), SD.view, v => { SD.view = v; saveSD(); showView(); });
+$('#sdSort').onchange = e => { if (SD.view === 'known') SD.sortKnown = e.target.value; else SD.sortLearn = e.target.value; saveSD(); renderStd(); };
+$('#sdQ').oninput = e => { sdQ = e.target.value; renderStd(); };
+$('#sdPick').onclick = stdPick;
+
+/* Add / edit modal */
+KEYS.forEach(k => $('#smRoot').add(new Option(pretty(k), k)));
+let smEditing = null, smDelArm = false;
+function openTuneModal(t) {
+  smEditing = t || null; smDelArm = false;
+  $('#smHead').textContent = t ? 'Edit tune' : 'Add tune';
+  $('#smName').value = t ? t.title : '';
+  const ki = t ? keyInfo(t.key) : null;
+  $('#smRoot').value = ki ? KEYS[ki.pc] : 'C'; $('#smMode').value = ki && ki.minor ? '-' : '';
+  $('#smList').value = t ? t.list : SD.view;
+  $('#smTempo').value = t && t.tempo ? t.tempo : '';
+  $('#smNotes').value = t ? t.notes : '';
+  $('#smDel').hidden = !t; $('#smDel').textContent = 'Delete';
+  $('#smModal').hidden = false;
+  if (!t) setTimeout(() => $('#smName').focus(), 50);
+}
+const closeTuneModal = () => { $('#smModal').hidden = true; };
+$('#sdAdd').onclick = () => openTuneModal(null);
+$('#smCancel').onclick = closeTuneModal;
+$('#smModal').addEventListener('click', e => { if (e.target.id === 'smModal') closeTuneModal(); });
+$('#smSave').onclick = () => {
+  const title = $('#smName').value.trim(); if (!title) return toast('Give the tune a title');
+  const key = $('#smRoot').value + $('#smMode').value, list = $('#smList').value;
+  const t = smEditing || newTune(title, key, list);
+  if (smEditing && t.list !== list) { t.stage = list === 'known' ? 5 : Math.min(t.stage, 4); if (list === 'known') t.focus = false; }
+  Object.assign(t, { title, key, list, tempo: +$('#smTempo').value || 0, notes: $('#smNotes').value.trim() });
+  if (!smEditing) STD.tunes.push(t);
+  saveStd(); closeTuneModal();
+  if (SD.view !== list) { SD.view = list; saveSD(); seg($('#sdView'), list, v => { SD.view = v; saveSD(); showView(); }); sortOptions(); }
+  if (sdCur === t.id || !smEditing) stdCard(t); else renderStd();
+  toast(smEditing ? 'Saved' : `Added: ${title}`);
+};
+$('#smDel').onclick = () => {
+  if (!smDelArm) { smDelArm = true; $('#smDel').textContent = 'Tap again to delete'; return; }
+  STD.tunes = STD.tunes.filter(x => x !== smEditing); saveStd();
+  if (sdCur === smEditing.id) { $('#stdCard').hidden = true; sdCur = null; }
+  closeTuneModal(); renderStd(); toast('Tune deleted');
+};
+
+/* Bulk paste */
+$('#sdBulk').onclick = () => { $('#sbText').value = ''; $('#sbList').value = SD.view; $('#sbModal').hidden = false; };
+$('#sbCancel').onclick = () => { $('#sbModal').hidden = true; };
+$('#sbModal').addEventListener('click', e => { if (e.target.id === 'sbModal') $('#sbModal').hidden = true; });
+$('#sbSave').onclick = () => {
+  const list = $('#sbList').value; let added = 0, dup = 0, bad = 0;
+  $('#sbText').value.split('\n').filter(l => l.trim()).forEach(l => {
+    const p = parseTuneLine(l); if (!p) { bad++; return; }
+    if (STD.tunes.some(t => t.title.toLowerCase() === p.title.toLowerCase() && t.key === p.key)) { dup++; return; }
+    STD.tunes.push(newTune(p.title, p.key, list)); added++;
+  });
+  saveStd(); $('#sbModal').hidden = true; renderStd();
+  toast(`Added ${added} tune${added === 1 ? '' : 's'}` + (dup ? ` · ${dup} already in your lists` : '') + (bad ? ` · ${bad} lines not understood` : ''));
+};
+
+/* Backup */
+$('#sdExport').onclick = () => {
+  const data = { app: 'woodshed', version: 1, exported: new Date().toISOString(), data: {} };
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('woodshed.')) data.data[k] = localStorage.getItem(k); } } catch (e) {}
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `woodshed-backup-${today()}.json`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast('Backup exported');
+};
+$('#sdImport').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if (d.app !== 'woodshed' || !d.data) throw new Error('bad');
+      Object.entries(d.data).forEach(([k, v]) => { if (k.startsWith('woodshed.')) localStorage.setItem(k, v); });
+      toast('Backup imported — reloading…'); setTimeout(() => location.reload(), 900);
+    } catch (err) { toast('That file is not a Woodshed backup'); }
+  };
+  rd.readAsText(f); e.target.value = '';
+};
+showView();
 
 /* Start on the last tab used */
 showTab(store.get('tab', 'metro'));
