@@ -149,6 +149,22 @@ textarea{resize:vertical}
 .tasks li{margin:5px 0}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:center;justify-content:center;padding:16px}
 .mbox{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
+/* Interval songs */
+.mbox.wide{max-width:900px;gap:0;padding-top:0}
+.mtop{position:sticky;top:0;background:var(--panel);padding:18px 0 12px;z-index:1;border-bottom:1px solid var(--line)}
+.irrow{border-bottom:1px solid var(--line);padding:14px 0}
+.irhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.ircols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:620px){.ircols{grid-template-columns:1fr}}
+.irdir{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.refchip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:6px 10px;font-size:14px;font-family:inherit;cursor:pointer;text-align:left;min-height:38px;opacity:.75}
+.refchip.on{border-color:var(--brass);color:var(--text);background:#3b2f1f;opacity:1}
+.refchip small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+.g{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;border-radius:4px;padding:1px 5px;margin-right:6px;vertical-align:1px;font-style:normal}
+.g-jazz{background:#5a4320;color:var(--brass2)}.g-pop{background:#27405e;color:#a9c8f0}.g-film{background:#4a2f4f;color:#e2b5ea}.g-classical{background:#2b4a36;color:#a6e0b8}
+.mine{color:var(--good)}
+#qRefs{margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;text-align:left;font-size:15px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -266,6 +282,7 @@ textarea{resize:vertical}
 <section id="tab-ear" class="tab" hidden>
   <div class="row center" style="margin-bottom:14px">
     <div class="seg" id="eMode"><button data-v="seq">Play it back</button><button data-v="quiz">Name it</button></div>
+    <button class="b" id="irOpen">🎵 Interval songs</button>
   </div>
 
   <div id="eSeqWrap">
@@ -311,6 +328,7 @@ textarea{resize:vertical}
         <button class="b" id="qReplay">↻ Replay</button>
       </div>
       <div class="answers" id="qAnswers"></div>
+      <div id="qRefs" hidden></div>
       <div class="muted" id="qHint" style="margin-top:10px;font-size:14px">After answering, tap any button to hear it from the same root and compare.</div>
       <div class="score" id="qScore" style="margin-top:8px"></div>
     </div>
@@ -403,6 +421,18 @@ textarea{resize:vertical}
   <label class="f">Add to<select id="sbList"><option value="learn">To learn</option><option value="known">Repertoire (I know it)</option></select></label>
   <div class="row" style="justify-content:flex-end"><button class="b" id="sbCancel">Cancel</button><button class="b primary" id="sbSave">Add tunes</button></div>
 </div></div>
+<div class="modal" id="irModal" hidden><div class="mbox wide">
+  <div class="mtop">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">🎵 Interval songs</h2><button class="b sm" id="irClose">✕ Close</button></div>
+    <div class="muted" style="font-size:14px;margin:8px 0 10px">Tap a song to show or hide it in the quiz feedback. Pick the ones you can really hear in your head. Unless a note says otherwise, the interval is between the first two notes of the melody. <span class="mine">★</span> in your repertoire · <span class="mine">☆</span> on your “To learn” list.</div>
+    <div class="row" id="irGenres"></div>
+    <div class="row" style="margin-top:8px;justify-content:space-between">
+      <span class="row"><button class="b sm" id="irAll">Select all</button><button class="b sm" id="irNone">Clear</button><button class="b sm" id="irReset">Default</button></span>
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px">Show in quiz<select id="irFb" style="width:auto"><option value="wrong">When I miss</option><option value="always">After every answer</option><option value="never">Never</option></select></label>
+    </div>
+  </div>
+  <div id="irList"></div>
+</div></div>
 </main>
 
 <nav class="tabs" id="tabs">
@@ -492,7 +522,7 @@ const LIB = {
     { id: 'P4', name: 'Perfect 4th', sym: 'P4', f: ['1', '4'], use: '“Here Comes the Bride”' },
     { id: 'TT', name: 'Tritone', sym: 'TT', f: ['1', '#4'], use: '“Maria” (West Side Story) · 3rd–7th of a dom7' },
     { id: 'P5', name: 'Perfect 5th', sym: 'P5', f: ['1', '5'], use: '“Star Wars” main theme' },
-    { id: 'm6', name: 'Minor 6th', sym: 'm6', f: ['1', 'b6'], use: '“Love Story” theme opening' },
+    { id: 'm6', name: 'Minor 6th', sym: 'm6', f: ['1', 'b6'], use: '“The Entertainer” (3rd → 4th note)' },
     { id: 'M6', name: 'Major 6th', sym: 'M6', f: ['1', '6'], use: '“My Bonnie Lies Over the Ocean”' },
     { id: 'm7', name: 'Minor 7th', sym: 'm7', f: ['1', 'b7'], use: '“Somewhere” (West Side Story)' },
     { id: 'M7', name: 'Major 7th', sym: 'M7', f: ['1', '7'], use: '“Take On Me” chorus leap' },
@@ -1133,6 +1163,131 @@ function grade(ok) {
 $('#eGot').onclick = () => grade(true);
 $('#eMiss').onclick = () => grade(false);
 
+/* Interval reference songs (ascending / descending).
+   Unless a cue says otherwise, the interval is between the first two notes of the melody. */
+const IREF_GENRES = { jazz: 'Jazz', pop: 'Popular & traditional', film: 'Film, TV & stage', classical: 'Classical' };
+const IREF = {
+  m2: {
+    up: [['Nice Work If You Can Get It', 'jazz'], ['As Time Goes By', 'jazz', 'Casablanca'], ['The Pink Panther', 'film', 'Mancini'], ['Jaws', 'film'], ['Ode to Joy', 'classical', 'Beethoven · 2nd → 3rd note'], ["Isn't She Lovely", 'pop', 'Stevie Wonder']],
+    down: [['Stella by Starlight', 'jazz'], ['Solar', 'jazz', 'Miles Davis'], ['Joy to the World', 'pop'], ['Für Elise', 'classical', 'Beethoven'], ['Jurassic Park', 'film', 'main theme']]
+  },
+  M2: {
+    up: [['My Funny Valentine', 'jazz'], ['Strangers in the Night', 'pop'], ['Happy Birthday', 'pop', '2nd → 3rd note'], ['Silent Night', 'pop'], ['Frère Jacques', 'pop'], ['Do-Re-Mi', 'film', 'The Sound of Music']],
+    down: [['Satin Doll', 'jazz'], ['Mary Had a Little Lamb', 'pop'], ['Three Blind Mice', 'pop'], ['The First Noel', 'pop'], ['Pictures at an Exhibition', 'classical', 'Mussorgsky · Promenade']]
+  },
+  m3: {
+    up: [['Greensleeves', 'pop'], ['Smoke on the Water', 'pop', 'riff'], ['The Sound of Silence', 'pop'], ['Axel F', 'film', 'Beverly Hills Cop'], ['The Impossible Dream', 'film', 'Man of La Mancha'], ["Brahms' Lullaby", 'classical']],
+    down: [['Hey Jude', 'pop'], ['The Star-Spangled Banner', 'pop'], ['Frosty the Snowman', 'pop'], ['This Old Man', 'pop']]
+  },
+  M3: {
+    up: [['When the Saints Go Marching In', 'jazz', 'New Orleans standard'], ['Kumbaya', 'pop'], ['Here, There and Everywhere', 'pop', 'The Beatles'], ['Spring', 'classical', 'Vivaldi, The Four Seasons'], ['O mio babbino caro', 'classical', 'Puccini']],
+    down: [['Summertime', 'jazz'], ['Swing Low, Sweet Chariot', 'pop'], ['Symphony No. 5', 'classical', 'Beethoven'], ['Vois sur ton chemin', 'film', 'Les Choristes']]
+  },
+  P4: {
+    up: [['All the Things You Are', 'jazz'], ['Here Comes the Bride', 'classical', 'Wagner, Bridal Chorus'], ['Amazing Grace', 'pop'], ['Auld Lang Syne', 'pop'], ['O Tannenbaum', 'pop']],
+    down: [['Eine kleine Nachtmusik', 'classical', 'Mozart'], ['O Come, All Ye Faithful', 'pop'], ['Dynasty', 'film', 'TV theme']]
+  },
+  TT: {
+    up: [['Maria', 'film', 'West Side Story'], ['The Simpsons', 'film', 'TV theme']],
+    down: [['Black Sabbath', 'pop', 'Black Sabbath'], ['YYZ', 'pop', 'Rush'], ['Danse macabre', 'classical', 'Saint-Saëns']]
+  },
+  P5: {
+    up: [['My Favorite Things', 'jazz', 'a Coltrane classic'], ['Star Wars', 'film', 'main title'], ['Also sprach Zarathustra', 'classical', 'R. Strauss · 2001'], ['Twinkle, Twinkle, Little Star', 'pop'], ["Can't Help Falling in Love", 'pop'], ['Scarborough Fair', 'pop']],
+    down: [['Seven Steps to Heaven', 'jazz'], ['The Flintstones', 'film', 'TV theme'], ['Back to the Future', 'film'], ['Halloween', 'film', 'John Carpenter'], ['What Shall We Do with the Drunken Sailor', 'pop']]
+  },
+  m6: {
+    up: [['Manhã de Carnaval (Black Orpheus)', 'jazz'], ['The Entertainer', 'classical', 'Joplin · 3rd → 4th note'], ['In My Life', 'pop', 'The Beatles'], ['Nothing Compares 2 U', 'pop'], ['1492: Conquest of Paradise', 'film', 'Vangelis']],
+    down: [["You're Everything", 'jazz', 'Chick Corea'], ['Love Story (Where Do I Begin)', 'film'], ['Call Me Maybe', 'pop']]
+  },
+  M6: {
+    up: [['My Way', 'pop'], ['My Bonnie Lies over the Ocean', 'pop'], ['NBC chimes', 'film'], ["Gabriel's Oboe", 'film', 'The Mission'], ["Leia's Theme", 'film', 'Star Wars'], ["Libiamo ne' lieti calici", 'classical', 'Verdi, La traviata']],
+    down: [["Nobody Knows the Trouble I've Seen", 'pop'], ['The Music of the Night', 'film', 'Phantom of the Opera'], ['Sweet Caroline', 'pop'], ['Over There', 'pop']]
+  },
+  m7: {
+    up: [['Somewhere', 'film', 'West Side Story'], ['Star Trek', 'film', 'original series theme'], ['The Winner Takes It All', 'pop', 'ABBA']],
+    down: [['Watermelon Man', 'jazz', 'Herbie Hancock'], ['An American in Paris', 'classical', 'Gershwin']]
+  },
+  M7: {
+    up: [['Take On Me', 'pop', 'a-ha · chorus'], ['Superman', 'film', 'main theme'], ['Fantasy Island', 'film', 'TV theme']],
+    down: [['I Love You', 'jazz', 'Cole Porter'], ['Have Yourself a Merry Little Christmas', 'pop']]
+  },
+  P8: {
+    up: [['Over the Rainbow', 'jazz', 'The Wizard of Oz'], ['Blue Bossa', 'jazz'], ['The Christmas Song', 'jazz', 'Mel Tormé'], ['Let It Snow!', 'pop'], ['When You Wish Upon a Star', 'film', 'Pinocchio']],
+    down: [['Willow Weep for Me', 'jazz']]
+  }
+};
+const escH = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const irKey = (id, dir, title) => id + '|' + dir + '|' + title;
+function defaultIrSel() {
+  const out = [];
+  for (const [id, o] of Object.entries(IREF)) for (const dir of ['up', 'down']) {
+    const l = o[dir], jz = l.filter(r => r[1] === 'jazz'), other = l.filter(r => r[1] !== 'jazz');
+    [...jz, ...other.slice(0, jz.length ? 1 : 2)].forEach(r => out.push(irKey(id, dir, r[0])));
+  }
+  return out;
+}
+const IRSEL = new Set(store.get('irefSel', null) || defaultIrSel());
+const IRS = Object.assign({ feedback: 'wrong' }, store.get('irefSet', {}));
+const saveIr = () => store.set('irefSel', [...IRSEL]);
+function refsFor(id, dir, fallback = true) {
+  const o = IREF[id]; if (!o) return [];
+  const s = o[dir].filter(r => IRSEL.has(irKey(id, dir, r[0])));
+  return s.length || !fallback ? s : o[dir].slice(0, 1);
+}
+function tuneTag(title) {
+  try {
+    const n = s => s.toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]/g, '');
+    const rn = n(title), t = STD.tunes.find(x => n(x.title).replace(/\d+$/, '') === rn);
+    return t ? (t.list === 'known' ? ' <span class="mine" title="In your repertoire">★</span>' : ' <span class="mine" title="On your To learn list">☆</span>') : '';
+  } catch (e) { return ''; }
+}
+const refHtml = r => `<i>${escH(r[0])}</i>${r[2] ? ` <span class="muted">(${escH(r[2])})</span>` : ''}${tuneTag(r[0])}`;
+function refSummary(id) {
+  const u = refsFor(id, 'up')[0], d = refsFor(id, 'down')[0];
+  return [u && '↑ ' + escH(u[0]), d && '↓ ' + escH(d[0])].filter(Boolean).join(' · ');
+}
+function refLine(it, dir, label) {
+  const refs = refsFor(it.id, dir);
+  return `<div><span class="muted">${label}</span> <b>${it.name} ${dir === 'up' ? '↑' : '↓'}</b> — ${refs.length ? refs.map(refHtml).join(' · ') : '<span class="muted">no song reference for this one</span>'}</div>`;
+}
+function renderIr() {
+  // genre quick-select buttons
+  const gb = $('#irGenres'); gb.innerHTML = '';
+  for (const [g, label] of Object.entries(IREF_GENRES)) {
+    const keys = []; for (const [id, o] of Object.entries(IREF)) for (const dir of ['up', 'down']) o[dir].forEach(r => { if (r[1] === g) keys.push(irKey(id, dir, r[0])); });
+    const all = keys.every(k => IRSEL.has(k));
+    const b = document.createElement('button'); b.className = 'b sm' + (all ? ' on' : ''); b.innerHTML = `<span class="g g-${g}">${label.split(/[ ,]/)[0]}</span>${all ? 'On' : 'Add all'}`;
+    b.title = label;
+    b.onclick = () => { keys.forEach(k => all ? IRSEL.delete(k) : IRSEL.add(k)); saveIr(); renderIr(); };
+    gb.appendChild(b);
+  }
+  const el = $('#irList'); el.innerHTML = '';
+  for (const it of LIB.intervals) {
+    const o = IREF[it.id]; if (!o) continue;
+    const row = document.createElement('div'); row.className = 'irrow';
+    const semis = parseDeg(it.f[1]).semis;
+    row.innerHTML = `<div class="irhead"><b style="font-size:17px">${it.name}</b><span class="muted" style="font-size:13px">${pretty(it.sym)} · ${semis} semitone${semis > 1 ? 's' : ''}</span>
+      <span style="flex:1"></span><button class="b sm" data-p="up">▶ ↑</button><button class="b sm" data-p="down">▶ ↓</button></div>
+      <div class="ircols">${['up', 'down'].map(dir => `<div><div class="irdir">${dir === 'up' ? '↑ Ascending' : '↓ Descending'}</div><div class="chips">${o[dir].map(r =>
+        `<button class="refchip${IRSEL.has(irKey(it.id, dir, r[0])) ? ' on' : ''}" data-k="${escH(irKey(it.id, dir, r[0]))}"><span class="g g-${r[1]}">${IREF_GENRES[r[1]].split(/[ ,]/)[0]}</span>${escH(r[0])}${tuneTag(r[0])}${r[2] ? `<small>${escH(r[2])}</small>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
+    $$('[data-p]', row).forEach(b => b.onclick = () => playSteps(itemSteps('intervals', it, pick(KEYS), b.dataset.p)));
+    $$('.refchip', row).forEach(b => b.onclick = () => {
+      const k = b.dataset.k; IRSEL.has(k) ? IRSEL.delete(k) : IRSEL.add(k); saveIr();
+      b.classList.toggle('on', IRSEL.has(k)); renderIrGenresOnly();
+    });
+    el.appendChild(row);
+  }
+}
+function renderIrGenresOnly() { const y = $('#irModal .mbox').scrollTop; renderIr(); $('#irModal .mbox').scrollTop = y; }
+$('#irOpen').onclick = () => { renderIr(); $('#irModal').hidden = false; $('#irModal .mbox').scrollTop = 0; };
+const irClose = () => { $('#irModal').hidden = true; if (typeof renderStudy === 'function' && !$('#tab-study').hidden) renderStudy(); };
+$('#irClose').onclick = irClose;
+$('#irModal').addEventListener('click', e => { if (e.target.id === 'irModal') irClose(); });
+$('#irAll').onclick = () => { for (const [id, o] of Object.entries(IREF)) for (const dir of ['up', 'down']) o[dir].forEach(r => IRSEL.add(irKey(id, dir, r[0]))); saveIr(); renderIrGenresOnly(); };
+$('#irNone').onclick = () => { IRSEL.clear(); saveIr(); renderIrGenresOnly(); };
+$('#irReset').onclick = () => { IRSEL.clear(); defaultIrSel().forEach(k => IRSEL.add(k)); saveIr(); renderIrGenresOnly(); };
+bindSel($('#irFb'), IRS, 'feedback', 'irefSet');
+
 /* Name-it quiz */
 const DEFAULT_SEL = {
   intervals: ['m2', 'M2', 'm3', 'M3', 'P4', 'TT', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'],
@@ -1171,7 +1326,7 @@ $('#qNew').onclick = () => {
   let it; do it = pick(items); while (qCur && items.length > 1 && it.id === qCur.it.id && Math.random() < 0.7);
   qCur = { it, key: pick(KEYS), answered: false };
   $$('#qAnswers button').forEach(b => b.classList.remove('right', 'wrong'));
-  $('#qPrompt').textContent = 'What do you hear?'; qPlay();
+  $('#qPrompt').textContent = 'What do you hear?'; $('#qRefs').hidden = true; qPlay();
 };
 $('#qReplay').onclick = () => qCur ? qPlay() : $('#qNew').click();
 function qAnswer(it, btn) {
@@ -1184,9 +1339,17 @@ function qAnswer(it, btn) {
   const notes = qCur.it.f.map(t => pretty(spell(qCur.key, t).name)).join(' – ');
   $('#qPrompt').innerHTML = `${ok ? '✓' : '✗'} <b style="margin:0 8px">${qCur.it.name}</b> <span class="muted">${notes}</span>`;
   $('#qScore').textContent = `${QS.right}/${QS.tot} correct this session`;
-  if (ok) setTimeout(() => { if (qCur && qCur.answered) $('#qNew').click(); }, 1400);
+  let showRefs = false;
+  if (Q.type === 'intervals' && IREF[qCur.it.id] && IRS.feedback !== 'never' && (!ok || IRS.feedback === 'always')) {
+    const dir = Q.dir === 'down' ? 'down' : 'up';
+    let h = refLine(qCur.it, dir, ok ? '🎵' : '🎵 Remember:');
+    if (!ok && IREF[it.id]) h += refLine(it, dir, 'You chose');
+    if (Q.dir === 'harm') h += '<div class="muted" style="font-size:13px">Played together — think of it ascending from the low note.</div>';
+    $('#qRefs').innerHTML = h; $('#qRefs').hidden = false; showRefs = true;
+  } else $('#qRefs').hidden = true;
+  if (ok) setTimeout(() => { if (qCur && qCur.answered) $('#qNew').click(); }, showRefs ? 3000 : 1400);
 }
-bindSel($('#qType'), Q, 'type', 'quiz', String, () => { qCur = null; $('#qPrompt').textContent = 'Press “New” and name what you hear'; renderQuizSel(); });
+bindSel($('#qType'), Q, 'type', 'quiz', String, () => { qCur = null; $('#qRefs').hidden = true; $('#qPrompt').textContent = 'Press “New” and name what you hear'; renderQuizSel(); });
 bindSel($('#qDir'), Q, 'dir', 'quiz');
 $('#qAll').onclick = () => { Q.sel[Q.type] = LIB[Q.type].map(x => x.id); saveQ(); renderQuizSel(); };
 $('#qNone').onclick = () => { Q.sel[Q.type] = []; saveQ(); renderQuizSel(); };
@@ -1222,7 +1385,7 @@ function renderStudy() {
     const notes = it.f.map(t => pretty(spell(key, t).name)).join(cat === 'intervals' ? ' → ' : '  ');
     const c = document.createElement('div'); c.className = 'card'; c.id = `card-${cat}-${it.id}`;
     c.innerHTML = `
-      <div class="ch"><div><div class="ctitle">${cardTitle(cat, it, key)}</div><div class="csub">${it.use}</div></div><div class="pct">${pctOf(p)}%</div></div>
+      <div class="ch"><div><div class="ctitle">${cardTitle(cat, it, key)}</div><div class="csub">${cat === 'intervals' && IREF[it.id] ? refSummary(it.id) : it.use}</div></div><div class="pct">${pctOf(p)}%</div></div>
       <div class="formula">${it.f.map(pretty).join(' ')}</div>
       <div class="notes">${notes}</div>
       <div class="row">
@@ -1487,7 +1650,7 @@ function keyInfo(k) {
 }
 function keyLabel(k) {
   const i = keyInfo(k), m = i.minor ? 'm' : '';
-  const short = INSTR[S.instr].label.split(' ')[0];
+  const short = INSTR[S.instr].label.split(/[ ,]/)[0];
   return `<span class="kchip">${pretty(i.root)}${m}</span>` + (T() ? ` <span>${short}: <b>${pretty(i.written)}${m}</b></span>` : '');
 }
 function lastTxt(t) {
