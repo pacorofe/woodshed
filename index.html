@@ -89,6 +89,7 @@ canvas#tTrace{width:100%;height:120px;display:block;background:var(--panel2);bor
 @media (max-width:560px){.keys{grid-template-columns:repeat(4,1fr)}}
 .key{background:var(--panel2);border:1px solid var(--line);border-radius:16px;min-height:86px;color:var(--text);font-size:30px;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:manipulation}
 .key small{font-size:12px;color:var(--muted)}
+.key.played{opacity:.55}
 .key.on{background:radial-gradient(circle at 50% 40%,#5a4320,#2e2414);border-color:var(--brass);color:var(--brass2);box-shadow:0 0 24px rgba(227,170,79,.25)}
 
 /* Ear */
@@ -260,11 +261,14 @@ textarea{resize:vertical}
     </div>
   </div>
   <div class="panel">
+    <h2>Voicing</h2>
+    <div class="row" style="margin-bottom:8px">
+      <label class="f" style="min-width:240px">Preset<select id="dPreset"></select></label>
+      <div class="muted" id="dVoiceTxt" style="font-size:14px;margin-top:18px"></div>
+    </div>
+    <div class="chkgrid" id="dInts" style="margin-bottom:18px"></div>
     <h2>Settings</h2>
     <div class="grid">
-      <label class="f">Voicing<select id="dVoice">
-        <option value="r">Root</option><option value="r5">Root + 5th</option><option value="r58">Root + 5th + octave</option>
-        <option value="maj">Major (root, 5th, 3rd)</option><option value="min">Minor (root, 5th, ♭3rd)</option></select></label>
       <label class="f">Sound<select id="dTimbre">
         <option value="warm">Warm strings</option><option value="organ">Organ</option><option value="reed">Reed</option><option value="sine">Pure sine</option></select></label>
       <label class="f">Register<select id="dOct"><option value="36">Low</option><option value="48">Middle</option><option value="60">High</option></select></label>
@@ -272,7 +276,7 @@ textarea{resize:vertical}
       <label class="f">Auto-change key<select id="dAuto">
         <option value="0">Off</option><option value="15">Every 15 s</option><option value="30">Every 30 s</option>
         <option value="60">Every 1 min</option><option value="120">Every 2 min</option><option value="300">Every 5 min</option></select></label>
-      <label class="f">Next key order<select id="dAutoOrder"><option value="fourths">Cycle of 4ths</option><option value="chrom">Chromatic up</option><option value="rand">Random</option></select></label>
+      <label class="f">Next key order<select id="dAutoOrder"><option value="fourths">Cycle of 4ths</option><option value="chrom">Chromatic up</option><option value="rand">Random (all 12 keys per cycle)</option></select></label>
     </div>
     <div class="muted" id="dStatus" style="margin-top:12px;font-size:14px"></div>
   </div>
@@ -693,7 +697,7 @@ for (const [k, v] of Object.entries(INSTR)) instrSel.add(new Option(v.label, k))
 instrSel.value = S.instr;
 instrSel.onchange = () => {
   S.instr = instrSel.value; store.set('instr', S.instr);
-  renderDroneKeys(); if (droneKey != null) droneStart(droneKey);
+  renderDroneKeys(); droneRestart(); renderVoicing();
   renderStudy(); renderEar(); updateTuner(null); renderStd(); if (sdCur) { const c = STD.tunes.find(t => t.id === sdCur); if (c) stdCard(c, false); }
   toast(INSTR[S.instr].label + ' — note names are now written for this instrument');
 };
@@ -754,9 +758,11 @@ function bindChk(el, obj, prop, key, after) {
 
 /* ============================================================
    1. METRONOME
+   The click track is rendered into a looping audio buffer, so it
+   keeps playing (like the drone) when the iPad screen is locked.
    ============================================================ */
 const M = Object.assign({ bpm: 120, beats: 4, sub: 1, swing: 0.5, clickOn: 'all', sound: 'wood', vol: 0.8, accent: true, playBars: 0, muteBars: 1 }, store.get('metro', {}));
-let mRunning = false, mNext = 0, mBeat = 0, mSubI = 0, mBar = 0, mTimer = null, mQueue = [];
+let mRunning = false, mSrc = null, mGain = null, mT0 = 0, mInfo = null, mLastIdx = -1, mRebuildT = null;
 const saveM = () => store.set('metro', M);
 
 function tempoName(b) {
@@ -765,75 +771,99 @@ function tempoName(b) {
 function setBpm(v) {
   M.bpm = clamp(Math.round(v), 30, 320); saveM();
   $('#mBpm').textContent = M.bpm; $('#mSlider').value = M.bpm; $('#mTempoName').textContent = tempoName(M.bpm);
+  mRebuild();
 }
 function renderBeats() {
   const el = $('#mBeats'); el.innerHTML = '';
   for (let i = 0; i < M.beats; i++) { const d = document.createElement('div'); d.className = 'beat' + (i === 0 && M.accent ? ' acc' : ''); el.appendChild(d); }
+  mLastIdx = -1;
 }
-function clickSound(t, kind) {
-  const c = ctx, v = M.vol * (kind === 'accent' ? 1 : kind === 'beat' ? 0.72 : 0.38);
-  if (v <= 0) return;
-  const g = c.createGain(); g.connect(master);
-  if (M.sound === 'beep') {
-    const o = c.createOscillator(); o.frequency.value = kind === 'accent' ? 1760 : kind === 'beat' ? 1320 : 990;
-    o.connect(g); g.gain.setValueAtTime(v * 0.6, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    o.start(t); o.stop(t + 0.06);
-  } else if (M.sound === 'wood') {
-    const o = c.createOscillator(); o.type = 'triangle';
-    const f = kind === 'accent' ? 1250 : kind === 'beat' ? 950 : 720;
-    o.frequency.setValueAtTime(f * 1.6, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.015);
-    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 2;
-    o.connect(bp); bp.connect(g);
-    g.gain.setValueAtTime(v * 1.6, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-    o.start(t); o.stop(t + 0.1);
-  } else {
-    const s = c.createBufferSource(); s.buffer = noiseBuf;
-    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = kind === 'accent' ? 5000 : 7500;
-    s.connect(hp); hp.connect(g);
-    const len = kind === 'accent' ? 0.14 : kind === 'beat' ? 0.07 : 0.04;
-    g.gain.setValueAtTime(v * 0.9, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    s.start(t); s.stop(t + len + 0.02);
+/* Write one click into the buffer (wrapping round the loop end) */
+function synthClick(d, sr, t, kind) {
+  const N = d.length, s0 = Math.round(t * sr), v = kind === 'accent' ? 1 : kind === 'beat' ? 0.72 : 0.38;
+  const len = Math.floor(sr * 0.12);
+  let ph = 0, x1 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < len; i++) {
+    const tt = i / sr, att = Math.min(1, i / (sr * 0.001));
+    let val;
+    if (M.sound === 'beep') {
+      const f = kind === 'accent' ? 1760 : kind === 'beat' ? 1320 : 990;
+      val = 0.55 * Math.sin(2 * Math.PI * f * tt) * Math.exp(-tt / 0.01);
+    } else if (M.sound === 'wood') {
+      const f = (kind === 'accent' ? 1250 : kind === 'beat' ? 950 : 720) * (1 + 0.6 * Math.exp(-tt / 0.005));
+      ph += 2 * Math.PI * f / sr;
+      val = 0.9 * (Math.sin(ph) + 0.25 * Math.sin(2 * ph)) * Math.exp(-tt / 0.016);
+    } else {
+      const x = Math.random() * 2 - 1, h1 = x - x1; x1 = x; const h2 = h1 - y1; y1 = h1; y2 = h2;
+      val = 0.45 * y2 * Math.exp(-tt / (kind === 'accent' ? 0.035 : kind === 'beat' ? 0.016 : 0.009));
+    }
+    d[(s0 + i) % N] += v * att * val;
   }
 }
-function scheduleTick(t) {
-  const cycle = M.playBars + M.muteBars;
-  const muted = M.playBars > 0 && (mBar % cycle) >= M.playBars;
-  if (mSubI === 0) mQueue.push({ t, beat: mBeat, muted });
-  if (muted) return;
-  let kind = null;
-  if (mSubI > 0) kind = 'sub';
-  else if (M.clickOn === '24') kind = (mBeat % 2 === 1) ? 'beat' : null;
-  else if (M.clickOn === '1') kind = mBeat === 0 ? 'accent' : null;
-  else kind = (mBeat === 0 && M.accent) ? 'accent' : 'beat';
-  if (kind) clickSound(t, kind);
+function mBuild() {
+  const sr = 22050, beatDur = 60 / M.bpm, gap = M.playBars > 0;
+  const bars = gap ? M.playBars + M.muteBars : 1;
+  const N = Math.max(1, Math.round(bars * M.beats * beatDur * sr));
+  const buf = ctx.createBuffer(1, N, sr), d = buf.getChannelData(0);
+  const offs = (M.sub === 2 && M.swing > 0.5) ? [0, M.swing] : Array.from({ length: M.sub }, (_, s) => s / M.sub);
+  for (let bar = 0; bar < bars; bar++) {
+    if (gap && bar >= M.playBars) continue;
+    for (let beat = 0; beat < M.beats; beat++) offs.forEach((o, s) => {
+      let kind = null;
+      if (s > 0) kind = 'sub';
+      else if (M.clickOn === '24') kind = beat % 2 === 1 ? 'beat' : null;
+      else if (M.clickOn === '1') kind = beat === 0 ? 'accent' : null;
+      else kind = (beat === 0 && M.accent) ? 'accent' : 'beat';
+      if (kind) synthClick(d, sr, ((bar * M.beats + beat) + o) * beatDur, kind);
+    });
+  }
+  return { buf, beatDur: N / sr / (bars * M.beats), beats: M.beats, bars, gap, playBars: M.playBars };
 }
-function advance() {
-  const beatDur = 60 / M.bpm;
-  let d;
-  if (M.sub === 2 && M.swing > 0.5) d = (mSubI === 0 ? M.swing : 1 - M.swing) * beatDur;
-  else d = beatDur / M.sub;
-  mNext += d;
-  if (++mSubI >= M.sub) { mSubI = 0; if (++mBeat >= M.beats) { mBeat = 0; mBar++; } }
+/* (Re)start the loop at time t, beginning at beat index startIdx of the cycle */
+function mPlayAt(t, startIdx = 0) {
+  const info = mBuild(), total = info.bars * info.beats;
+  const idx = mod(startIdx, total), offset = idx * info.beatDur;
+  const src = ctx.createBufferSource(); src.buffer = info.buf; src.loop = true; src.connect(mGain);
+  src.start(t, offset);
+  if (mSrc) { try { mSrc.stop(t); } catch (e) {} }
+  mSrc = src; mInfo = info; mT0 = t - offset;
 }
-function mScheduler() { while (mNext < ctx.currentTime + 0.12) { scheduleTick(mNext); advance(); } }
+function mRebuild() {
+  if (!mRunning) return;
+  clearTimeout(mRebuildT);
+  mRebuildT = setTimeout(() => {
+    if (!mRunning) return;
+    // switch over on the next beat, keeping the bar count going
+    const now = ctx.currentTime, pos = now - mT0;
+    const nextIdx = Math.max(0, Math.ceil((pos + 0.04) / mInfo.beatDur));
+    const t = mT0 + nextIdx * mInfo.beatDur;
+    mPlayAt(t, nextIdx % (mInfo.bars * mInfo.beats));
+  }, 90);
+}
 function mDraw() {
   if (!mRunning) return;
-  let cur = null;
-  while (mQueue.length && mQueue[0].t <= ctx.currentTime) cur = mQueue.shift();
-  if (cur) {
-    const dots = $$('#mBeats .beat');
-    dots.forEach((d, i) => { d.classList.toggle('on', i === cur.beat); d.classList.toggle('mute', cur.muted); });
+  const pos = ctx.currentTime - mT0;
+  if (pos >= 0 && mInfo) {
+    const total = mInfo.bars * mInfo.beats, idx = Math.floor(pos / mInfo.beatDur) % total;
+    if (idx !== mLastIdx) {
+      mLastIdx = idx;
+      const beat = idx % mInfo.beats, bar = Math.floor(idx / mInfo.beats), muted = mInfo.gap && bar >= mInfo.playBars;
+      $$('#mBeats .beat').forEach((d, i) => { d.classList.toggle('on', i === beat); d.classList.toggle('mute', muted); });
+    }
   }
   requestAnimationFrame(mDraw);
 }
 function mStart() {
-  ac(); mRunning = true; mBeat = 0; mSubI = 0; mBar = 0; mQueue = [];
-  mNext = ctx.currentTime + 0.08;
-  mTimer = setInterval(mScheduler, 25); mScheduler(); requestAnimationFrame(mDraw);
+  ac(); mRunning = true; mLastIdx = -1;
+  mGain = ctx.createGain(); mGain.gain.value = M.vol; mGain.connect(master);
+  mPlayAt(ctx.currentTime + 0.08, 0);
+  requestAnimationFrame(mDraw);
   $('#mStart').textContent = '■ Stop';
 }
 function mStop() {
-  mRunning = false; clearInterval(mTimer);
+  mRunning = false; clearTimeout(mRebuildT);
+  if (mSrc) { try { mSrc.stop(); } catch (e) {} mSrc = null; }
+  if (mGain) { const g = mGain; setTimeout(() => { try { g.disconnect(); } catch (e) {} }, 200); mGain = null; }
   $$('#mBeats .beat').forEach(d => d.classList.remove('on', 'mute'));
   $('#mStart').textContent = '▶ Start';
 }
@@ -847,15 +877,15 @@ $('#mTap').addEventListener('pointerdown', () => {
   $('#mTap').textContent = taps.length >= 2 ? `Tap tempo (${taps.length})` : 'Keep tapping…';
 });
 for (let i = 1; i <= 12; i++) $('#mBeatsSel').add(new Option(i, i));
-bindSel($('#mBeatsSel'), M, 'beats', 'metro', Number, () => { if (mBeat >= M.beats) mBeat = 0; renderBeats(); });
-bindSel($('#mSub'), M, 'sub', 'metro', Number, () => { mSubI = 0; });
-bindSel($('#mSwing'), M, 'swing', 'metro', Number, () => { if (M.swing > 0.5 && M.sub !== 2) { M.sub = 2; $('#mSub').value = '2'; saveM(); } });
-bindSel($('#mClickOn'), M, 'clickOn', 'metro');
-bindSel($('#mSound'), M, 'sound', 'metro');
-bindSel($('#mPlayBars'), M, 'playBars', 'metro', Number, () => { mBar = 0; });
-bindSel($('#mMuteBars'), M, 'muteBars', 'metro', Number, () => { mBar = 0; });
-bindChk($('#mAccent'), M, 'accent', 'metro', renderBeats);
-$('#mVol').value = M.vol; $('#mVol').oninput = e => { M.vol = +e.target.value; saveM(); };
+bindSel($('#mBeatsSel'), M, 'beats', 'metro', Number, () => { renderBeats(); mRebuild(); });
+bindSel($('#mSub'), M, 'sub', 'metro', Number, mRebuild);
+bindSel($('#mSwing'), M, 'swing', 'metro', Number, () => { if (M.swing > 0.5 && M.sub !== 2) { M.sub = 2; $('#mSub').value = '2'; saveM(); } mRebuild(); });
+bindSel($('#mClickOn'), M, 'clickOn', 'metro', String, mRebuild);
+bindSel($('#mSound'), M, 'sound', 'metro', String, mRebuild);
+bindSel($('#mPlayBars'), M, 'playBars', 'metro', Number, mRebuild);
+bindSel($('#mMuteBars'), M, 'muteBars', 'metro', Number, mRebuild);
+bindChk($('#mAccent'), M, 'accent', 'metro', () => { renderBeats(); mRebuild(); });
+$('#mVol').value = M.vol; $('#mVol').oninput = e => { M.vol = +e.target.value; saveM(); if (mGain) mGain.gain.setTargetAtTime(M.vol, ctx.currentTime, 0.03); };
 renderBeats(); setBpm(M.bpm);
 
 /* ============================================================
@@ -973,7 +1003,7 @@ function tStop() {
   $('#tStart').textContent = '🎤 Start tuner'; updateTuner(-1);
 }
 $('#tStart').onclick = () => tRunning ? tStop() : tStart();
-stepper($('#tA4'), { min: 430, max: 450, step: 1, get: () => S.a4, set: v => { S.a4 = v; store.set('a4', v); if (droneKey != null) droneStart(droneKey); } });
+stepper($('#tA4'), { min: 430, max: 450, step: 1, get: () => S.a4, set: v => { S.a4 = v; store.set('a4', v); droneRestart(); } });
 bindSel($('#tShow'), TU, 'show', 'tuner');
 $('#tGate').value = TU.gate; $('#tGate').oninput = e => { TU.gate = +e.target.value; store.set('tuner', TU); };
 // slider: left = more sensitive feels natural → invert visually
@@ -982,22 +1012,45 @@ window.addEventListener('resize', () => { if (!$('#tab-tuner').hidden) resizeTra
 
 /* ============================================================
    3. DRONE
+   Key changes are scheduled ahead in the audio engine, so auto-change
+   keeps working while the screen is locked.
    ============================================================ */
-const D = Object.assign({ voice: 'r5', timbre: 'warm', oct: 48, vol: 0.6, auto: 0, autoOrder: 'fourths', order: 'chrom' }, store.get('drone', {}));
-let droneNodes = null, droneKey = null, droneAutoT = null;
+const D = Object.assign({ timbre: 'warm', oct: 48, vol: 0.6, auto: 0, autoOrder: 'fourths', order: 'chrom' }, store.get('drone', {}));
+if (!Array.isArray(D.ints) || !D.ints.length) D.ints = ({ r: [0], r5: [0, 7], r58: [0, 7, 12], maj: [0, 4, 7], min: [0, 3, 7] })[D.voice] || [0, 7];
+delete D.voice;
 const saveD = () => store.set('drone', D);
+const DRONE_INTS = [[-12, 'Root 8vb'], [0, 'Root'], [1, '♭2'], [2, '2'], [3, '♭3'], [4, '3'], [5, '4'], [6, '♯4 / ♭5'], [7, '5'], [8, '♯5 / ♭6'], [9, '6'], [10, '♭7'], [11, '7'],
+  [12, 'Octave'], [13, '♭9'], [14, '9'], [15, '♯9'], [17, '11'], [18, '♯11'], [19, '5 (8va)'], [20, '♭13'], [21, '13'], [24, '2 octaves']];
+const DRONE_PRESETS = [
+  ['Root', [0]], ['Root + 5th', [0, 7]], ['Power: 1 5 8', [0, 7, 12]], ['Deep: low root, root, 5th', [-12, 0, 7]],
+  ['Major triad', [0, 4, 7]], ['Minor triad', [0, 3, 7]], ['Major 7th', [0, 4, 7, 11]], ['Minor 7th', [0, 3, 7, 10]],
+  ['Dominant 7th', [0, 4, 7, 10]], ['Half-diminished', [0, 3, 6, 10]], ['Sus4', [0, 5, 7]], ['7sus4', [0, 5, 7, 10]],
+  ['Quartal: 1 4 ♭7', [0, 5, 10]], ['So What: 1 4 ♭7 ♭3 5', [0, 5, 10, 15, 19]], ['Lydian: 1 5 9 ♯11', [0, 7, 14, 18]],
+  ['Dorian: 1 5 ♭7 9 13', [0, 7, 10, 14, 21]], ['Altered: 1 3 ♭7 ♯9 ♭13', [0, 4, 10, 15, 20]], ['Open 5ths: 1 5 9', [0, 7, 14]]
+];
+let droneKey = null, droneBus = null, dPlan = [], dGen = null, dMode = null, dSyncT = null, dLastKeyShown = null;
 
-function renderDroneKeys() {
-  const el = $('#dKeys'); el.innerHTML = '';
-  const order = D.order === 'fourths' ? FOURTHS : KEYS;
-  for (const k of order) {
-    const b = document.createElement('button'); b.className = 'key' + (droneKey === k ? ' on' : ''); b.dataset.k = k;
-    b.innerHTML = pretty(k) + (T() ? `<small>concert ${pretty(concertName(k))}</small>` : '');
-    b.onclick = () => droneKey === k ? droneStop() : droneStart(k);
-    el.appendChild(b);
-  }
+/* ---- pseudo-random key order: every 12 changes cover all 12 keys ---- */
+function makeKeyGen(start) {
+  const g = { cycle: [], pos: 0, n: 0 };
+  const ordered = arr => { const i = arr.indexOf(start); return [...arr.slice(i), ...arr.slice(0, i)]; };
+  if (D.autoOrder === 'rand') g.cycle = [start, ...shuffle(KEYS.filter(k => k !== start))];
+  else g.cycle = ordered(D.autoOrder === 'fourths' ? FOURTHS : KEYS);
+  g.next = () => {
+    if (g.pos >= 12) {
+      const last = g.cycle[11];
+      if (D.autoOrder === 'rand') { let c; do c = shuffle(KEYS); while (c[0] === last); g.cycle = c; }
+      g.pos = 0; g.n++;
+    }
+    return { k: g.cycle[g.pos], pos: g.pos++, cycle: g.n };
+  };
+  return g;
 }
-function droneVoice(f, gain, out) {
+function adjustMode(ints, mode) {
+  if (!mode) return ints;
+  return [...new Set(ints.map(iv => mode === 'minor' ? (iv === 4 ? 3 : iv) : (iv === 3 ? 4 : iv)))];
+}
+function droneVoice(f, gain, out, t0) {
   const c = ctx, nodes = [];
   const vg = c.createGain(); vg.gain.value = gain; vg.connect(out);
   const osc = (type, fr, g, det = 0) => { const o = c.createOscillator(); o.type = type; o.frequency.value = fr; o.detune.value = det; const gg = c.createGain(); gg.gain.value = g; o.connect(gg); nodes.push(o); return gg; };
@@ -1013,53 +1066,130 @@ function droneVoice(f, gain, out) {
     const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 0.13 + Math.random() * 0.1; lg.gain.value = f * 0.8;
     lfo.connect(lg); lg.connect(lp.frequency); nodes.push(lfo);
   }
-  nodes.forEach(o => o.start());
+  nodes.forEach(o => o.start(t0));
   return nodes;
 }
-function droneStart(k, voiceOverride) {
-  ac(); droneFade();
-  droneKey = k;
-  const concertPc = mod(parseNote(k).pc - T(), 12);
-  const base = D.oct + concertPc;
-  const ints = { r: [0], r5: [0, 7], r58: [0, 7, 12], maj: [0, 7, 16], min: [0, 7, 15] }[voiceOverride || D.voice];
-  const out = ctx.createGain(); out.gain.setValueAtTime(0, ctx.currentTime);
-  out.gain.linearRampToValueAtTime(D.vol * 0.55, ctx.currentTime + 0.9); out.connect(master);
+function makeSegment(info, t0) {
+  const ints = adjustMode(D.ints, dMode).slice().sort((a, b) => a - b);
+  const base = D.oct + mod(parseNote(info.k).pc - T(), 12);
+  const out = ctx.createGain(); out.gain.setValueAtTime(0, t0); out.gain.linearRampToValueAtTime(1, t0 + 0.9); out.connect(droneBus);
+  const scale = ints.length > 3 ? Math.sqrt(3 / ints.length) : 1;
   let oscs = [];
-  ints.forEach((iv, i) => { oscs = oscs.concat(droneVoice(freq(base + iv), i === 0 ? 0.55 : 0.32, out)); });
-  droneNodes = { out, oscs };
-  renderDroneKeys(); droneSchedule();
-  $('#dStatus').textContent = `Drone: ${pretty(k)}${T() ? ' (concert ' + pretty(concertName(k)) + ')' : ''}` + (D.auto ? ` · next key in ${D.auto}s` : '');
+  ints.forEach(iv => { oscs = oscs.concat(droneVoice(freq(base + iv), (iv === 0 ? 0.55 : 0.32) * scale, out, t0)); });
+  return Object.assign({}, info, { t0, t1: null, out, oscs });
 }
-function droneFade() {
-  if (!droneNodes) return;
-  const { out, oscs } = droneNodes; const t = ctx.currentTime;
-  out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(out.gain.value, t); out.gain.linearRampToValueAtTime(0, t + 0.7);
-  oscs.forEach(o => { try { o.stop(t + 0.8); } catch (e) {} });
-  setTimeout(() => { try { out.disconnect(); } catch (e) {} }, 1000);
-  droneNodes = null;
+function closeSegment(seg, t1) {
+  if (seg.t1 != null) return;
+  seg.t1 = t1;
+  seg.out.gain.setValueAtTime(1, t1); seg.out.gain.linearRampToValueAtTime(0, t1 + 0.8);
+  seg.oscs.forEach(o => { try { o.stop(t1 + 0.9); } catch (e) {} });
 }
-function droneStop() { droneFade(); droneKey = null; clearInterval(droneAutoT); renderDroneKeys(); $('#dStatus').textContent = ''; }
-function droneSchedule() {
-  clearInterval(droneAutoT);
-  if (!D.auto || droneKey == null) return;
-  droneAutoT = setInterval(() => {
-    let next;
-    if (D.autoOrder === 'rand') { do next = pick(KEYS); while (next === droneKey); }
-    else { const arr = D.autoOrder === 'fourths' ? FOURTHS : KEYS; next = arr[(arr.indexOf(droneKey) + 1) % 12]; }
-    droneStart(next);
-  }, D.auto * 1000);
+function killSegment(seg, now) {
+  if (seg.t0 > now) { try { seg.out.disconnect(); } catch (e) {} seg.oscs.forEach(o => { try { o.stop(); } catch (e) {} }); return; }
+  try {
+    seg.out.gain.cancelScheduledValues(now); seg.out.gain.setValueAtTime(seg.out.gain.value, now); seg.out.gain.linearRampToValueAtTime(0, now + 0.7);
+  } catch (e) {}
+  seg.oscs.forEach(o => { try { o.stop(now + 0.8); } catch (e) {} });
+  setTimeout(() => { try { seg.out.disconnect(); } catch (e) {} }, 1000);
 }
+/* keep `ahead` future key changes scheduled */
+function droneTopUp(ahead) {
+  if (!D.auto || !dPlan.length) return;
+  const now = ctx.currentTime;
+  while (dPlan.filter(s => s.t0 > now).length < ahead) {
+    const last = dPlan[dPlan.length - 1], t = last.t0 + D.auto;
+    closeSegment(last, t);
+    dPlan.push(makeSegment(dGen.next(), t));
+  }
+}
+function droneStart(k, mode) {
+  ac();
+  const now = ctx.currentTime;
+  dPlan.forEach(s => killSegment(s, now)); dPlan = [];
+  if (!droneBus) { droneBus = ctx.createGain(); droneBus.gain.value = D.vol * 0.55; droneBus.connect(master); }
+  droneBus.gain.setTargetAtTime(D.vol * 0.55, now, 0.05);
+  dMode = mode || null;
+  dGen = makeKeyGen(k);
+  dPlan.push(makeSegment(dGen.next(), now + 0.02));
+  droneKey = k; dLastKeyShown = null;
+  droneTopUp(document.hidden ? 60 : 2);
+  clearInterval(dSyncT); dSyncT = setInterval(droneSync, 400);
+  droneSync();
+}
+function droneStop() {
+  if (ctx) { const now = ctx.currentTime; dPlan.forEach(s => killSegment(s, now)); }
+  dPlan = []; droneKey = null; clearInterval(dSyncT);
+  renderDroneKeys(); $('#dStatus').textContent = '';
+  if (typeof updDroneBtns === 'function') try { updDroneBtns(); } catch (e) {}
+}
+function droneSync() {
+  if (!dPlan.length) return;
+  const now = ctx.currentTime;
+  droneTopUp(document.hidden ? 60 : 2);
+  let i = 0; for (let j = 0; j < dPlan.length; j++) if (dPlan[j].t0 <= now + 0.05) i = j;
+  // forget segments that have finished
+  if (i > 0) { dPlan = dPlan.slice(i); i = 0; }
+  const cur = dPlan[0];
+  droneKey = cur.k;
+  if (dLastKeyShown !== cur.k + '|' + cur.cycle) { dLastKeyShown = cur.k + '|' + cur.cycle; renderDroneKeys(); if (typeof updDroneBtns === 'function') try { updDroneBtns(); } catch (e) {} }
+  let txt = `Drone: ${pretty(cur.k)}${T() ? ' (concert ' + pretty(concertName(cur.k)) + ')' : ''}`;
+  if (D.auto) {
+    const nxt = dPlan[1];
+    txt += ` · key ${cur.pos + 1} of 12 in this cycle`;
+    if (nxt) txt += ` · next: ${pretty(nxt.k)} in ${Math.max(0, Math.ceil(nxt.t0 - now))} s`;
+  }
+  $('#dStatus').textContent = txt;
+}
+document.addEventListener('visibilitychange', () => { if (dPlan.length && ctx) { droneTopUp(document.hidden ? 60 : 2); if (!document.hidden) droneSync(); } });
+function renderDroneKeys() {
+  const el = $('#dKeys'); el.innerHTML = '';
+  const order = D.order === 'fourths' ? FOURTHS : KEYS;
+  const cur = dPlan[0], played = new Set();
+  if (cur && D.auto && dGen) dGen.cycle.slice(0, cur.pos).forEach(k => played.add(k));
+  for (const k of order) {
+    const b = document.createElement('button'); b.className = 'key' + (droneKey === k ? ' on' : '') + (played.has(k) ? ' played' : ''); b.dataset.k = k;
+    b.innerHTML = pretty(k) + (T() ? `<small>concert ${pretty(concertName(k))}</small>` : '');
+    b.onclick = () => droneKey === k ? droneStop() : droneStart(k);
+    el.appendChild(b);
+  }
+}
+/* ---- voicing builder ---- */
+function renderVoicing() {
+  const sel = $('#dPreset'), cur = JSON.stringify([...D.ints].sort((a, b) => a - b));
+  const match = DRONE_PRESETS.findIndex(p => JSON.stringify([...p[1]].sort((a, b) => a - b)) === cur);
+  sel.value = match >= 0 ? String(match) : 'custom';
+  $$('#dInts input').forEach(cb => cb.checked = D.ints.includes(+cb.value));
+  const k = droneKey || 'C';
+  const names = [...D.ints].sort((a, b) => a - b).map(iv => pretty(PC_NAMES[mod(parseNote(k).pc + iv, 12)]));
+  $('#dVoiceTxt').textContent = `${names.join(' · ')}  (in ${pretty(k)}${T() ? ', written' : ''})`;
+}
+(function buildVoicingUI() {
+  const sel = $('#dPreset');
+  DRONE_PRESETS.forEach((p, i) => sel.add(new Option(p[0], i)));
+  sel.add(new Option('Custom', 'custom'));
+  sel.onchange = () => { if (sel.value === 'custom') return; D.ints = [...DRONE_PRESETS[+sel.value][1]]; saveD(); renderVoicing(); droneRestart(); };
+  const box = $('#dInts');
+  DRONE_INTS.forEach(([iv, label]) => {
+    const l = document.createElement('label'); l.className = 'chk';
+    l.innerHTML = `<input type="checkbox" value="${iv}"> ${label}`;
+    $('input', l).onchange = e => {
+      const s = new Set(D.ints); e.target.checked ? s.add(iv) : s.delete(iv);
+      if (!s.size) { e.target.checked = true; return toast('Keep at least one note in the drone'); }
+      D.ints = [...s].sort((a, b) => a - b); saveD(); renderVoicing(); droneRestart();
+    };
+    box.appendChild(l);
+  });
+})();
+const droneRestart = () => { if (droneKey != null) droneStart(droneKey, dMode); };
 $('#dStop').onclick = droneStop;
 seg($('#dOrder'), D.order, v => { D.order = v; saveD(); renderDroneKeys(); });
-const droneRestart = () => { if (droneKey != null) droneStart(droneKey); };
-bindSel($('#dVoice'), D, 'voice', 'drone', String, droneRestart);
 bindSel($('#dTimbre'), D, 'timbre', 'drone', String, droneRestart);
 bindSel($('#dOct'), D, 'oct', 'drone', Number, droneRestart);
 bindSel($('#dAuto'), D, 'auto', 'drone', Number, droneRestart);
-bindSel($('#dAutoOrder'), D, 'autoOrder', 'drone');
+bindSel($('#dAutoOrder'), D, 'autoOrder', 'drone', String, droneRestart);
 $('#dVol').value = D.vol;
-$('#dVol').oninput = e => { D.vol = +e.target.value; saveD(); if (droneNodes) droneNodes.out.gain.setTargetAtTime(D.vol * 0.55, ctx.currentTime, 0.05); };
-renderDroneKeys();
+$('#dVol').oninput = e => { D.vol = +e.target.value; saveD(); if (droneBus) droneBus.gain.setTargetAtTime(D.vol * 0.55, ctx.currentTime, 0.05); };
+renderDroneKeys(); renderVoicing();
 
 /* ============================================================
    4. EAR TRAINING
@@ -1718,8 +1848,7 @@ function renderStd() {
 function tuneDrone(t) {
   const ki = keyInfo(t.key);
   if (droneKey === ki.written) { droneStop(); toast('Drone stopped'); return; }
-  const v = (D.voice === 'maj' || D.voice === 'min') ? (ki.minor ? 'min' : 'maj') : null;
-  droneStart(ki.written, v);
+  droneStart(ki.written, ki.minor ? 'minor' : 'major');
   toast(`Drone on ${pretty(ki.written)}${ki.minor ? 'm' : ''}${T() ? ' (written)' : ''}`);
 }
 function tuneMetro(t) {
